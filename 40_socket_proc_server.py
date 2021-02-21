@@ -54,46 +54,52 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
   server.bind(addr)
   logger.info(f'binded addr={addr}')
 
-  server.listen(1)
-  logger.info('listening ...')
+  while True:
 
-  conn, addr = server.accept()  # get socket = make connection
-  logger.debug(f'Connected by {addr}')
+    server.listen(1)
+    logger.info('listening ...')
 
-  with conn:
+    try:
+      conn, addr = server.accept()  # get socket = make connection
+    except KeyboardInterrupt as e:
+      logger.error(str(e))
+      break
+    logger.debug(f'Connected by {addr}')
 
-    while True:  # keep listening
+    with conn:
 
-      data = conn.recv(buffsize)
+      while True:  # keep listening
 
-      if data:
+        data = conn.recv(buffsize)
 
-        dtstr = data.decode() # data file path
-        fname = fname_tmp.format(dtstr=dtstr)
-        logger.info(f'recieved fname={fname}')
+        if data:
 
-        try:
-          data = load(fname)
-        except FileNotFoundError as e:
-          logger.error(e)
-          data_send = 'error'.encode()
+          dtstr = data.decode() # data file path
+          fname = fname_tmp.format(dtstr=dtstr)
+          logger.info(f'recieved fname={fname}')
+
+          try:
+            data = load(fname)
+          except FileNotFoundError as e:
+            logger.error(e)
+            data_send = 'error'.encode()
+          else:
+            logger.info(f'Loaded fname={fname}')
+            stats = process(data)
+            data_send = 'ok'.encode()
+
+            fname = fname_feats_tmp.format(dtstr=dtstr)
+            with open(fname, mode='w') as f:
+              f.write(f'{stats:.2f}')
+            logger.debug(f'Saved: {stats} {fname}')
+
+          conn.sendall(data_send)
+
         else:
-          logger.info(f'Loaded fname={fname}')
-          stats = process(data)
-          data_send = 'ok'.encode()
 
-          fname = fname_feats_tmp.format(dtstr=dtstr)
-          with open(fname, mode='w') as f:
-            f.write(f'{stats:.2f}')
-
-        conn.sendall(data_send)
-        logger.debug(f'sent {stats}')
-        logger.debug('--------------------------------')
-
-      else:
-
-        logger.info(f'Recieved no data. break')
-        break
+          logger.info(f'Recieved no data. break')
+          logger.debug('--------------------------------')
+          break
 
 server.close()
 logger.debug('Closed connection.')
